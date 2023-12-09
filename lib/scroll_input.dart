@@ -1,6 +1,5 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'utils.dart';
 
 class ScrollInputV3 extends StatefulWidget {
@@ -36,9 +35,24 @@ class ScrollInputV3 extends StatefulWidget {
 
 class _ScrollInputV3State extends State<ScrollInputV3> {
   late final PageController pageController =
-      PageController(initialPage: widget.initialPage, viewportFraction: 0.6);
+      PageController(initialPage: widget.initialPage, viewportFraction: 0.5);
 
-  late List<Page> pagesList;
+  late List<Widget> pagesList;
+  int currentPage = 0;
+  bool isEditMode = false;
+  double? height;
+  final FocusNode _focusNode = FocusNode();
+  late final TextEditingController _textController =
+      TextEditingController(text: widget.values[widget.initialPage]);
+
+  _onTap() {
+    setState(() {
+      isEditMode = true;
+    });
+    _focusNode.requestFocus();
+    _textController.text = widget.values[currentPage];
+    _textController.selectAll();
+  }
 
   _onDownArrow() {
     widget.onDown?.call();
@@ -52,7 +66,7 @@ class _ScrollInputV3State extends State<ScrollInputV3> {
         duration: const Duration(milliseconds: 100), curve: Curves.easeInOut);
   }
 
-  _onChanged(String string, int index) {
+  _onChanged(String string) {
     widget.onValueChanged?.call(string);
   }
 
@@ -60,14 +74,37 @@ class _ScrollInputV3State extends State<ScrollInputV3> {
   Widget build(BuildContext context) {
     pagesList = List.generate(
         widget.values.length,
-        (index) => Page(
-            text: widget.values[index],
-            style: Theme.of(context).textTheme.bodyMedium,
-            onChanged: (string) {
-              _onChanged(string, index);
-            },
-            pageController: pageController,
-            values: widget.values));
+        (index) => Center(
+              child: Text(widget.values[index]),
+            ));
+
+    Widget scrollInputTextField = Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 10),
+      child: ScrollInputTextField(
+        controller: _textController,
+        // showCursor: true,
+        // textAlign: TextAlign.center,
+        focusNode: _focusNode,
+
+        decoration: const InputDecoration(
+            filled: false,
+            border: InputBorder.none,
+            fillColor: Colors.transparent),
+        onTapOutside: (event) {
+          _focusNode.unfocus();
+          isEditMode = false;
+          setState(() {});
+        },
+        onValueChanged: (string) {
+          if (string != '') {
+            _onChanged(string);
+          }
+        },
+        pageController: pageController,
+        style: widget.textStyle ?? Theme.of(context).textTheme.bodyMedium,
+        values: widget.values,
+      ),
+    );
 
     return SizedBox(
       height: widget.height,
@@ -84,18 +121,53 @@ class _ScrollInputV3State extends State<ScrollInputV3> {
               children: [
                 Center(
                   child: Builder(builder: (context) {
-                    return PageView(
-                      reverse: widget.reverse,
-                      onPageChanged: (page) {
-                        String string = widget.values[page.toInt()];
-                        widget.onValueChanged?.call(string);
-                      },
-                      allowImplicitScrolling: false,
-                      scrollDirection: Axis.vertical,
-                      controller: pageController,
-                      children: pagesList,
-                    );
+                    return LayoutBuilder(builder: (context, constr) {
+                      height = constr.maxHeight;
+                      return PageView(
+                        reverse: widget.reverse,
+                        onPageChanged: (page) {
+                          currentPage = page.toInt();
+                          setState(() {});
+                          String string = widget.values[page.toInt()];
+                          widget.onValueChanged?.call(string);
+                        },
+                        allowImplicitScrolling: false,
+                        scrollDirection: Axis.vertical,
+                        controller: pageController,
+                        children: pagesList,
+                      );
+                    });
                   }),
+                ),
+                InkWell(
+                  onTap: _onTap,
+                  child: Visibility(
+                      visible: isEditMode,
+                      child: Center(
+                        child: Container(
+                          // height: (height ?? 10) * 0.55,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                                transform: const GradientRotation(1.57079633),
+                                stops: const [
+                                  0.2,
+                                  0.3,
+                                  0.5,
+                                  0.7,
+                                  0.8
+                                ],
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.9),
+                                  Colors.black,
+                                  Colors.black.withOpacity(0.9),
+                                  Colors.transparent
+                                ]),
+                          ),
+                          // color: Colors.black,
+                          child: Center(child: scrollInputTextField),
+                        ),
+                      )),
                 ),
                 const _ForeGround(),
               ],
@@ -189,23 +261,20 @@ class ScrollInputTextField extends TextField {
       {super.key,
       super.onTapOutside,
       super.style,
-      super.showCursor = true,
       super.textAlign = TextAlign.center,
       super.keyboardType = TextInputType.number,
-      super.decoration,
-      super.expands = true,
-      super.maxLines = null,
-      super.enabled,
-      super.textAlignVertical = TextAlignVertical.center,
-      super.strutStyle = StrutStyle.disabled,
       required super.focusNode,
       super.onChanged,
+      super.decoration,
       required this.pageController,
-      super.enableInteractiveSelection = false,
-      super.selectionHeightStyle = BoxHeightStyle.tight,
       required this.onValueChanged,
       required super.controller,
-      required this.values});
+      required this.values})
+      : super(
+            maxLines: null,
+            expands: true,
+            maxLengthEnforcement: MaxLengthEnforcement.enforced,
+            textAlignVertical: TextAlignVertical.center);
 
   final Function(String string)? onValueChanged;
 
@@ -249,54 +318,6 @@ class ScrollInputTextField extends TextField {
         }
       }
     }
-  }
-}
-
-class Page extends StatelessWidget {
-  const Page({
-    super.key,
-    required this.text,
-    this.style,
-    required this.onChanged,
-    required this.pageController,
-    required this.values,
-  });
-  final String text;
-  final TextStyle? style;
-  final PageController pageController;
-  final List<String> values;
-  final Function(String string) onChanged;
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Builder(builder: (context) {
-        final controller = TextEditingController(text: text);
-        final focusNode = FocusNode();
-        focusNode.addListener(() {
-          if (focusNode.hasFocus) {
-            controller.selectAll();
-          }
-        });
-
-        return Container(
-          // color: Colors.amber.withAlpha(200),
-          child: ScrollInputTextField(
-            textAlign: TextAlign.center,
-            focusNode: focusNode,
-            decoration: const InputDecoration(
-                border: InputBorder.none,
-                enabled: true,
-                floatingLabelAlignment: FloatingLabelAlignment.center),
-            controller: controller,
-            style: style,
-            onValueChanged: (String string) {
-              onChanged.call(string);
-            },
-            pageController: pageController,
-            values: values,
-          ),
-        );
-      }),
-    );
+    super.onTapOutside?.call(event);
   }
 }
