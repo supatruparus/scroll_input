@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+part of 'scroll_input.dart';
 
 extension SelectAll on TextEditingController {
   selectAll() {
